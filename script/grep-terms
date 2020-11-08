@@ -1,0 +1,120 @@
+#!perl
+
+# AUTHORITY
+# DATE
+# DIST
+# VERSION
+
+use 5.010001;
+use strict;
+use warnings;
+use Log::ger;
+
+use Getopt::Long;
+
+my @grep_argv;
+
+sub parse_cmdline {
+    Getopt::Long::Configure('pass_through');
+    my $res = GetOptions(
+        'version|V'        => sub {
+            no warnings 'once';
+            say "grep-terms version ", ($main::VERSION // 'dev');
+            exit 0;
+        },
+        'help'           => sub {
+            print <<USAGE;
+Usage:
+  grep-terms [GREP-TERM-OPTIONS]... <TERMS> [GREP-OPTIONS | FILES]...
+  grep-terms --help
+  grep-terms --version|-V
+Grep-term Options:
+
+Examples:
+  % grep-terms "foo bar baz -qux -quux" -i file.txt
+
+For more details, see the manpage/documentation.
+USAGE
+            exit 0;
+        },
+    );
+    exit 99 if !$res;
+    log_trace "ARGV: %s", \@ARGV;
+    die "grep-terms: Please supply terms" unless @ARGV;
+    my $terms = shift @ARGV;
+    #log_trace "terms: %s", $terms;
+    my $re = '^';
+    for my $term (split /\s+/, $terms) {
+        if ($term =~ s/^-//) {
+            $re .= "(?!.*$term)";
+        } else {
+            $re .= "(?=.*$term)";
+        }
+    }
+    push @grep_argv, '-P', '-e', $re, @ARGV;
+}
+
+sub run {
+    log_trace "Exec: %s", ["grep", @grep_argv];
+    exec "grep", @grep_argv;
+}
+
+# MAIN
+
+parse_cmdline();
+run();
+
+1;
+# ABSTRACT: Print lines that match terms
+# PODNAME: grep-terms
+
+=head1 SYNOPSIS
+
+ % grep-terms [GREP-TERM-OPTIONS]... <TERMS> [GREP-OPTIONS | FILES]...
+ % grep-terms --help
+ % grep-terms --version|-V
+
+Example:
+
+  % grep-terms "foo bar baz -qux -quux" -i file.txt
+
+will print lines from F<file.txt> that contain "foo", "bar", "baz" (in no
+particular order) and do not contain "qux" or "quux".
+
+
+=head1 DESCRIPTION
+
+C<grep-terms> is a simple wrapper for Unix command C<grep>. It converts I<terms>
+(the first argument) like this:
+
+ "foo bar baz -qux -quux"
+
+to:
+
+ -P -e '^(?=.*foo)' -e '^(?=.*bar)(?=.*baz)(?!.*qux)(?!.*quux)'
+
+It allows searching each term in I<terms> in no particular order and negative
+search (using the dash prefix syntax). The drawback is that grep won't highlight
+the terms. Use L<abgrep> for that.
+
+
+=head1 OPTIONS
+
+
+=head1 EXIT CODES
+
+0 on success.
+
+255 on I/O error.
+
+99 on command-line options error.
+
+
+=head1 FAQ
+
+
+=head1 SEE ALSO
+
+L<abgrep> from L<App::abgrep>
+
+=cut
